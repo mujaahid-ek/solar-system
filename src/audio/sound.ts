@@ -1,11 +1,11 @@
 /**
- * Sound: one looped ambient bed for the whole catalog — a Jovian chorus
- * recording (Univ. of Iowa, CC BY 4.0) — plus two sampled UI blips (hover,
- * select). Off by default; nothing plays before a user gesture (which is
- * also what the Web Audio API requires).
+ * Sound: a synthesised wind bed — two layers of filtered brown noise that
+ * gust slowly against each other, so there is no loop seam and no screech —
+ * plus two sampled UI blips (hover, select). Sound is ON by default, but the
+ * browser autoplay policy means the bed only actually starts on the first
+ * user gesture anywhere on the page.
  */
 
-const AMBIENT_URL = '/audio/ambient.mp3';
 const UI: Record<string, string> = {
   hover: '/audio/hover.mp3',
   select: '/audio/select.mp3',
@@ -17,24 +17,36 @@ const UI_LEVEL: Record<string, number> = { hover: 0.5, select: 0.85 };
 /** hovering across the nav strip shouldn't machine-gun the blip */
 const HOVER_GAP = 0.07;
 
-interface Playing {
-  src: AudioBufferSourceNode;
-  gain: GainNode;
+interface Wind {
+  out: GainNode;
+  nodes: AudioScheduledSourceNode[];
 }
 
 export class Sound {
-  enabled = false;
+  enabled = true; // on by default; the bed waits for the first gesture
 
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private bedBus: GainNode | null = null;
   private buffers = new Map<string, AudioBuffer>();
   private missing = new Set<string>();
-  private playing: Playing | null = null;
+  private wind: Wind | null = null;
   private lastHover = 0;
+  private armed = false;
 
   constructor() {
-    this.enabled = false; // always opt-in per visit; catalog stays quiet by default
+    // the bed can't start before a user gesture — arm it on the first one
+    const arm = () => {
+      if (this.armed) return;
+      this.armed = true;
+      window.removeEventListener('pointerdown', arm);
+      window.removeEventListener('keydown', arm);
+      window.removeEventListener('touchstart', arm);
+      if (this.enabled) this.start();
+    };
+    window.addEventListener('pointerdown', arm);
+    window.addEventListener('keydown', arm);
+    window.addEventListener('touchstart', arm);
   }
 
   private ensureCtx(): AudioContext {
@@ -51,19 +63,117 @@ export class Sound {
     return this.ctx;
   }
 
+  /** spin up the context, wind bed and UI samples together */
+  private start() {
+    this.ensureCtx();
+    this.startBed();
+    for (const url of Object.values(UI)) void this.load(url);
+  }
+
   toggle(): boolean {
     this.enabled = !this.enabled;
-    if (this.enabled) {
-      this.ensureCtx();
-      this.startBed();
-      for (const name of Object.keys(UI)) void this.load(UI[name]);
-    } else {
-      this.stopBed();
-    }
+    if (this.enabled) this.start();
+    else this.stopBed();
     return this.enabled;
   }
 
-  /* ---------- loading ---------- */
+  /* ---------- procedural wind bed ---------- */
+
+  /** a long brown-noise buffer: smooth, low-frequency, tapered so it loops clean */
+  private brownNoise(seconds: number): AudioBuffer {
+    const ctx = this.ensureCtx();
+    const len = Math.floor(ctx.sampleRate * seconds);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < len; i++) {
+      const white = Math.random() * 2 - 1;
+      last = (last + 0.02 * white) / 1.02; // integrate → brown (no highs = no screech)
+      d[i] = last * 3.2;
+    }
+    // fade the ends into each other so the loop wrap can never click
+    const f = Math.min(2400, (len / 2) | 0);
+    for (let i = 0; i < f; i++) {
+      const g = i / f;
+      d[i] *= g;
+      d[len - 1 - i] *= g;
+    }
+    return buf;
+  }
+
+  /** wire a slow sine LFO onto an AudioParam, oscillating around `center` */
+  private lfo(freq: number, depth: number, target: AudioParam, center: number): OscillatorNode {
+    const ctx = this.ensureCtx();
+    target.value = center;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    const amp = ctx.createGain();
+    amp.gain.value = depth;
+    osc.connect(amp).connect(target);
+    osc.start();
+    return osc;
+  }
+
+  private startBed() {
+    if (this.wind || !this.enabled) return;
+    const ctx = this.ensureCtx();
+    const nodes: AudioScheduledSourceNode[] = [];
+    const out = ctx.createGain();
+    out.gain.setValueAtTime(0.0001, ctx.currentTime);
+    out.gain.linearRampToValueAtTime(1, ctx.currentTime + XFADE);
+    out.connect(this.bedBus!);
+
+    // layer 1 — low rumble, gusting in level
+    const base = ctx.createBufferSource();
+    base.buffer = this.brownNoise(7);
+    base.loop = true;
+    const baseLP = ctx.createBiquadFilter();
+    baseLP.type = 'lowpass';
+    baseLP.frequency.value = 480;
+    baseLP.Q.value = 0.7;
+    const baseGain = ctx.createGain();
+    nodes.push(this.lfo(0.05, 0.3, baseGain.gain, 0.55)); // 0.25‥0.85
+    base.connect(baseLP).connect(baseGain).connect(out);
+    base.start();
+    nodes.push(base);
+
+    // layer 2 — airy whoosh, its band slowly sweeping, kept soft
+    const air = ctx.createBufferSource();
+    air.buffer = this.brownNoise(6);
+    air.loop = true;
+    const airBP = ctx.createBiquadFilter();
+    airBP.type = 'bandpass';
+    airBP.Q.value = 0.5;
+    nodes.push(this.lfo(0.08, 260, airBP.frequency, 720)); // sweep 460‥980 Hz
+    const airGain = ctx.createGain();
+    nodes.push(this.lfo(0.07, 0.08, airGain.gain, 0.12));
+    air.connect(airBP).connect(airGain).connect(out);
+    air.start();
+    nodes.push(air);
+
+    this.wind = { out, nodes };
+  }
+
+  private stopBed() {
+    if (!this.wind || !this.ctx) return;
+    const { out, nodes } = this.wind;
+    const t = this.ctx.currentTime;
+    out.gain.cancelScheduledValues(t);
+    out.gain.setValueAtTime(out.gain.value, t);
+    out.gain.linearRampToValueAtTime(0.0001, t + XFADE * 0.6);
+    const stopAt = t + XFADE * 0.6 + 0.05;
+    for (const n of nodes) {
+      try {
+        n.stop(stopAt);
+      } catch {
+        /* already stopped */
+      }
+    }
+    this.wind = null;
+  }
+
+  /* ---------- UI sounds (sampled) ---------- */
 
   private async load(url: string): Promise<AudioBuffer | null> {
     if (this.buffers.has(url)) return this.buffers.get(url)!;
@@ -73,7 +183,6 @@ export class Sound {
       if (!res.ok) throw new Error(String(res.status));
       const raw = await res.arrayBuffer();
       const buf = await this.ensureCtx().decodeAudioData(raw);
-      if (url === AMBIENT_URL) this.condition(buf);
       this.buffers.set(url, buf);
       return buf;
     } catch {
@@ -81,60 +190,6 @@ export class Sound {
       return null;
     }
   }
-
-  /** normalize peak and fade both ends so the loop seam breathes instead of clicking */
-  private condition(buf: AudioBuffer) {
-    const fade = Math.min(1.2 * buf.sampleRate, buf.length / 4);
-    let peak = 0;
-    for (let c = 0; c < buf.numberOfChannels; c++) {
-      const d = buf.getChannelData(c);
-      for (let i = 0; i < d.length; i++) peak = Math.max(peak, Math.abs(d[i]));
-    }
-    const gain = peak > 0.001 ? 0.6 / peak : 1;
-    for (let c = 0; c < buf.numberOfChannels; c++) {
-      const d = buf.getChannelData(c);
-      for (let i = 0; i < d.length; i++) {
-        let g = gain;
-        if (i < fade) g *= i / fade;
-        else if (i > d.length - fade) g *= (d.length - i) / fade;
-        d[i] *= g;
-      }
-    }
-  }
-
-  /* ---------- ambient bed ---------- */
-
-  private async startBed() {
-    if (this.playing) return;
-    const buf = await this.load(AMBIENT_URL);
-    // the toggle may have flipped back while decoding
-    if (!this.enabled || this.playing || !buf) return;
-
-    const ctx = this.ensureCtx();
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    src.loop = true;
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(1, ctx.currentTime + XFADE);
-    src.connect(gain);
-    gain.connect(this.bedBus!);
-    src.start();
-    this.playing = { src, gain };
-  }
-
-  private stopBed() {
-    if (!this.playing || !this.ctx) return;
-    const { src, gain } = this.playing;
-    const t = this.ctx.currentTime;
-    gain.gain.cancelScheduledValues(t);
-    gain.gain.setValueAtTime(gain.gain.value, t);
-    gain.gain.linearRampToValueAtTime(0.0001, t + XFADE * 0.6);
-    src.stop(t + XFADE * 0.6 + 0.05);
-    this.playing = null;
-  }
-
-  /* ---------- UI sounds (sampled) ---------- */
 
   private blip(name: 'hover' | 'select') {
     if (!this.enabled) return;

@@ -15,13 +15,15 @@ const DETAIL_HINT = 'Drag rotate · scroll zoom · tap circles · esc back';
 /** where the "Built by Mujaahid" watermark points — X/Twitter */
 const MADEBY_URL = 'https://x.com/mujaahid_ek';
 
-/** newest first; [version, one-line summary] */
+/** newest first; [version, terse summary]. Only the most recent few are shown. */
 const CHANGELOG: [string, string][] = [
-  ['0.4', 'Mobile hero layout · higher-contrast chrome'],
-  ['0.3', 'Cyberpunk UI pass · British English throughout'],
-  ['0.2', 'Single ambient bed · sampled UI sounds'],
-  ['0.1', 'Orrery + detail catalogue · spacecraft models'],
+  ['0.5', 'Wind bed · previews'],
+  ['0.4', 'Mobile hero layout'],
+  ['0.3', 'Cyberpunk UI pass'],
+  ['0.2', 'Ambient audio'],
+  ['0.1', 'Detail catalogue'],
 ];
+const CHANGELOG_SHOWN = 3;
 
 export class Hud {
   private indexEl: HTMLElement;
@@ -60,10 +62,12 @@ export class Hud {
       <div id="colophon">
         <div id="changelog">
           <div id="clogList" role="region" aria-label="Changelog" hidden>
-            ${CHANGELOG.map(
-              ([v, note]) =>
-                `<div class="clog-row"><span class="v">${v}</span><span class="n">${note}</span></div>`
-            ).join('')}
+            ${CHANGELOG.slice(0, CHANGELOG_SHOWN)
+              .map(
+                ([v, note]) =>
+                  `<div class="clog-row"><span class="v">${v}</span><span class="n">${note}</span></div>`
+              )
+              .join('')}
           </div>
           <button id="clogBtn" aria-expanded="false" aria-controls="clogList">
             <span class="chev" aria-hidden="true"></span>Changelog<span class="cur-v">v${CHANGELOG[0][0]}</span>

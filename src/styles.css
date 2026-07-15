@@ -38,6 +38,9 @@
   --body-font: 'Inter', system-ui, -apple-system, sans-serif;
   --panel-w: 356px;
   --shadow-text: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 14px rgba(0, 0, 0, 0.65);
+  /* tighter, darker outline for small text sitting directly over bright scenery */
+  --shadow-legible: 0 0 2px rgba(0, 0, 0, 0.95), 0 1px 4px rgba(0, 0, 0, 0.95),
+    0 0 10px rgba(0, 0, 0, 0.85);
   --cut: polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%);
   /* Cyberpunk dual-notch silhouettes: opposite corners sliced */
   --cut2: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
@@ -280,6 +283,8 @@ canvas#gl {
   inset: 13px;
   border: 1px solid var(--accent-2);
   border-radius: 50%;
+  /* dark ring hugging the cyan so the node reads on bright planets too */
+  box-shadow: 0 0 0 2px rgba(5, 6, 10, 0.5), 0 0 6px 1px rgba(5, 6, 10, 0.6);
   transition-property: background-color, box-shadow, border-color;
   transition-duration: 180ms;
 }
@@ -289,7 +294,7 @@ canvas#gl {
   inset: 4.5px;
   border-radius: 50%;
   background: var(--accent-2);
-  box-shadow: 0 0 9px var(--accent-2);
+  box-shadow: 0 0 0 1.5px rgba(5, 6, 10, 0.65), 0 0 9px var(--accent-2);
 }
 .hot-marker::before {
   content: '';
@@ -297,6 +302,7 @@ canvas#gl {
   inset: 9px;
   border: 1px solid rgba(95, 212, 230, 0.6);
   border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(5, 6, 10, 0.4);
   animation: hotping 2.8s cubic-bezier(0.2, 0, 0.4, 1) infinite;
 }
 @keyframes hotping {
@@ -316,7 +322,7 @@ canvas#gl {
 .hot-marker:hover i,
 .hot-marker.open i {
   background: rgba(95, 212, 230, 0.22);
-  box-shadow: 0 0 14px rgba(95, 212, 230, 0.5);
+  box-shadow: 0 0 0 2px rgba(5, 6, 10, 0.5), 0 0 14px rgba(95, 212, 230, 0.55);
 }
 .hot-marker.open::before {
   animation: none;
@@ -569,7 +575,7 @@ canvas#gl {
   transform: scale(0.96);
 }
 .idx:hover {
-  color: var(--ink-2);
+  color: var(--ink);
 }
 .idx .no {
   margin-right: 0.55em;
@@ -615,10 +621,12 @@ canvas#gl {
   font-size: 9px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--ink-3);
+  /* near-white + strong dark halo stays legible over bright bodies (Sun/Venus)
+     yet reads as a quiet caption on the dark orrery */
+  color: var(--ink);
   white-space: nowrap;
   pointer-events: none;
-  text-shadow: var(--shadow-text);
+  text-shadow: var(--shadow-legible);
   transition: opacity 400ms ease;
 }
 #credit {
@@ -678,10 +686,13 @@ canvas#gl {
   text-transform: inherit;
   color: var(--ink-3);
   text-shadow: var(--shadow-text);
-  transition: color 140ms ease;
+  transition: color 140ms ease, transform 140ms ease;
 }
 #clogBtn:hover {
-  color: var(--ink-2);
+  color: var(--ink);
+}
+#clogBtn:active {
+  transform: scale(0.96);
 }
 #clogBtn .cur-v {
   color: var(--accent);
@@ -702,7 +713,7 @@ canvas#gl {
   position: absolute;
   left: 0;
   bottom: calc(100% + 9px);
-  width: 264px;
+  width: 184px;
   padding: 12px 14px;
   background: var(--surface);
   border: 1px solid var(--line);
@@ -745,7 +756,7 @@ canvas#gl {
   color: var(--ink-3);
   text-decoration: none;
   text-shadow: var(--shadow-text);
-  transition: color 140ms ease;
+  transition: color 140ms ease, transform 140ms ease;
 }
 #madeby b {
   font-weight: 600;
@@ -758,10 +769,13 @@ canvas#gl {
 }
 #madeby:hover,
 #madeby:hover b {
-  color: var(--accent-2);
+  color: var(--ink);
 }
-/* the centred index needs the room on tighter desktops */
-@media (max-width: 1140px) {
+#madeby:active {
+  transform: scale(0.96);
+}
+/* the centred index needs the room — only show the colophon on roomy desktops */
+@media (max-width: 1200px) {
   #colophon {
     display: none;
   }
@@ -777,6 +791,8 @@ canvas#gl {
   padding: 26px 26px 32px;
   overflow-y: auto;
   overscroll-behavior: contain;
+  /* more opaque than the shared chrome so bright bodies behind don't wash out text */
+  background: rgba(15, 18, 27, 0.86);
   border: 1px solid var(--line);
   clip-path: var(--cut2);
   visibility: hidden;
@@ -912,7 +928,7 @@ canvas#gl {
   font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--ink-3);
+  color: var(--ink-2); /* was ink-3 — too faint over bright bodies bleeding through */
 }
 .row dd {
   font-family: var(--mono);

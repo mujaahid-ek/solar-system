@@ -55,6 +55,7 @@ function stepBody(delta: 1 | -1) {
 }
 
 hud.setCraft(craftOn); // markers hide via the #app.hide-craft class from frame one
+hud.setSound(sound.enabled); // sound is on by default (bed arms on first gesture)
 
 const labels = document.createElement('div');
 labels.id = 'labels';
