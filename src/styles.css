@@ -1135,17 +1135,17 @@ canvas#gl {
     z-index: 6;
   }
   .mnav-group {
+    flex: 1; /* both groups equal width — split the row evenly, gap between */
     display: flex;
     height: 100%;
     border: 1px solid var(--line);
     clip-path: var(--cut-btn);
     overflow: hidden; /* keep the paired buttons inside the notched silhouette */
   }
-  .mnav-group:last-child {
-    flex: 1; /* arrows fill the row; the zoom group stays content-width */
-  }
   #mnav button {
     flex: 1;
+    min-width: 0; /* let flex-basis:0 win so the Prev/Next text can't make its
+                     group wider than the zoom group — all four stay equal */
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1159,9 +1159,8 @@ canvas#gl {
     transition-property: color, opacity, transform;
     transition-duration: 140ms;
   }
-  /* zoom controls are compact, fixed-width slots */
+  /* zoom controls flex to the same width as prev/next (inherit flex:1) */
   #mnav .zbtn {
-    flex: 0 0 46px;
     gap: 0;
     font-size: 20px;
     font-weight: 400;
