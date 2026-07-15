@@ -209,6 +209,9 @@ export class World {
   }
 
   resize(w: number, h: number, panelFrac: number, bottomFrac: number) {
+    // cap DPR lower on phones — a full-screen 3× buffer is a heavy fill-rate
+    // cost for little visible gain on a small planet
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, w <= 900 ? 1.5 : 2));
     this.renderer.setSize(w, h);
     this.orrery.resize(w, h);
     this.detail.resize(w, h);

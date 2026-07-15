@@ -7,6 +7,8 @@ export interface HudCallbacks {
   onToggleSound: () => void;
   /** mobile arrow nav: slide to the previous/next body */
   onStep: (delta: 1 | -1) => void;
+  /** mobile zoom nav: +1 zoom in (closer), -1 zoom out */
+  onZoom: (dir: 1 | -1) => void;
 }
 
 const ORRERY_HINT = 'Click body · scroll zoom · toggle craft';
@@ -17,6 +19,8 @@ const MADEBY_URL = 'https://x.com/mujaahid_ek';
 
 /** newest first; [version, terse summary]. Only the most recent few are shown. */
 const CHANGELOG: [string, string][] = [
+  ['1.0', 'Launch · lighter + centred'],
+  ['0.6', 'Mobile zoom · Neptune mark'],
   ['0.5', 'Wind bed · previews'],
   ['0.4', 'Mobile hero layout'],
   ['0.3', 'Cyberpunk UI pass'],
@@ -53,9 +57,15 @@ export class Hud {
       <aside id="panelR" class="panel" aria-live="polite"></aside>
       <div id="hotspots"></div>
       <nav id="index" aria-label="Bodies"></nav>
-      <nav id="mnav" aria-label="Previous / next body">
-        <button id="mPrev"><span class="arr">←</span>Prev</button>
-        <button id="mNext">Next<span class="arr">→</span></button>
+      <nav id="mnav" aria-label="Zoom and previous / next body">
+        <div class="mnav-group" role="group" aria-label="Zoom">
+          <button id="mZoomOut" class="zbtn" aria-label="Zoom out"><span>−</span></button>
+          <button id="mZoomIn" class="zbtn" aria-label="Zoom in"><span>+</span></button>
+        </div>
+        <div class="mnav-group" role="group" aria-label="Previous / next body">
+          <button id="mPrev"><span class="arr">←</span>Prev</button>
+          <button id="mNext">Next<span class="arr">→</span></button>
+        </div>
       </nav>
       <div id="hint">${ORRERY_HINT}</div>
       <div id="credit">Imagery &amp; 3D models NASA · Solar System Scope · Audio U. Iowa (CC BY 4.0) · solarsystem.surf</div>
@@ -100,6 +110,8 @@ export class Hud {
     this.soundBtn.addEventListener('click', cb.onToggleSound);
     this.prevBtn.addEventListener('click', () => cb.onStep(-1));
     this.nextBtn.addEventListener('click', () => cb.onStep(1));
+    app.querySelector('#mZoomIn')!.addEventListener('click', () => cb.onZoom(1));
+    app.querySelector('#mZoomOut')!.addEventListener('click', () => cb.onZoom(-1));
 
     const clogBtn = app.querySelector<HTMLButtonElement>('#clogBtn')!;
     const clogList = app.querySelector<HTMLElement>('#clogList')!;

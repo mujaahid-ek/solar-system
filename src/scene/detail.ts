@@ -76,6 +76,9 @@ export class DetailView {
   private dist = BASE_DIST;
   private targetDist = BASE_DIST;
   private offset = new THREE.Vector3();
+  private otmp = new THREE.Vector3();
+  private xFrac = 0;
+  private yFrac = 0;
   private elapsed = 0;
   private v = new THREE.Vector3();
   private v2 = new THREE.Vector3();
@@ -125,6 +128,7 @@ export class DetailView {
       s = buildCraftStage(craftById(id), 1);
       this.craftStages.set(id, s);
     }
+    s.load(); // ensure the GLB is fetching once a craft is being opened
     return s;
   }
 
@@ -166,6 +170,7 @@ export class DetailView {
     for (const t of this.timers) window.clearTimeout(t);
     this.timers = [];
     this.clearMarkers();
+    this.finishSlide();
 
     const incoming = this.craftStageFor(id);
     const outgoing = this.current;
@@ -182,6 +187,7 @@ export class DetailView {
     this.slide = null;
     this.pitchTarget = 0; // craft carry no presentation pitch
     this.targetDist = this.fitDist(incoming);
+    this.recomputeOffset(); // key the offset to THIS craft's framing distance
     this.dist = this.targetDist;
     incoming.group.position.copy(this.offset);
   }
@@ -211,11 +217,30 @@ export class DetailView {
 
   /* ---------- body switching ---------- */
 
+  /**
+   * Settle any in-flight lateral slide instantly. Without this, tapping
+   * prev/next faster than the 620ms slide orphaned the previous slide's
+   * outgoing stage — it stayed in the scene, peeking from the edge, until you
+   * returned to it. Snapping the current stage home and dropping the old
+   * outgoing before the next slide starts keeps rapid stepping clean.
+   */
+  private finishSlide() {
+    const s = this.slide;
+    if (!s) return;
+    if (s.outgoing) {
+      this.scene.remove(s.outgoing.group);
+      if (isBody(s.outgoing)) downgradeStage(s.outgoing);
+    }
+    s.incoming.group.position.copy(this.offset);
+    this.slide = null;
+  }
+
   setBody(id: string, dir: 0 | 1 | -1) {
     if (this.currentId() === id) return;
     for (const t of this.timers) window.clearTimeout(t);
     this.timers = [];
     this.clearMarkers();
+    this.finishSlide();
 
     const incoming = this.stageFor(id);
     const outgoing = this.current;
@@ -228,6 +253,7 @@ export class DetailView {
     this.glideT = -1;
     this.pitchTarget = PITCH;
     this.targetDist = this.fitDist(incoming);
+    this.recomputeOffset(); // key the offset to THIS body's framing distance
     if (dir === 0) {
       this.dist = this.targetDist;
       if (outgoing) {
@@ -242,10 +268,12 @@ export class DetailView {
     }
 
     // heavy work waits until the slide has settled: hi-res upload, then
-    // neighbor stage pre-builds so the *next* slide starts warm
+    // neighbor stage pre-builds so the *next* slide starts warm.
+    // Skip the 8k swap on phones — the 15 MB decodes hitch badly and 2k is
+    // plenty at that screen size.
     this.timers.push(
       window.setTimeout(() => {
-        if (this.current === incoming) {
+        if (this.current === incoming && window.innerWidth > 900) {
           upgradeStage(incoming, this.renderer, () => this.current === incoming);
         }
       }, 900),
@@ -279,12 +307,35 @@ export class DetailView {
 
   /** viewport offset so the body sits centered in the space beside/above panels */
   setOffset(xFrac: number, yFrac: number) {
-    const vh = 2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) * this.baseDistSafe();
-    const vw = vh * this.camera.aspect;
-    this.offset.set(-xFrac * vw * 0.5, yFrac * vh * 0.5, 0);
+    this.xFrac = xFrac;
+    this.yFrac = yFrac;
+    this.recomputeOffset();
     if (this.current && !this.slide && this.glideT < 0) {
       this.current.group.position.copy(this.offset);
     }
+  }
+
+  /**
+   * Offset in world units keyed to the CURRENT body's framing distance, so
+   * every body lands at the same on-screen spot. Ringed planets frame far
+   * further back on a narrow phone (the rings must fit), and a fixed world
+   * offset left Saturn sitting low; deriving it per-body keeps it centered.
+   */
+  private recomputeOffset() {
+    this.offsetAt(this.baseDistSafe(), this.offset);
+  }
+
+  /**
+   * The screen-space slot as a world offset for a given camera distance. Keying
+   * it to the *live* distance each frame (see update) keeps the body pinned to
+   * the same spot on screen while zooming, so magnifying grows it about its own
+   * centre — not toward the bottom, which is what a fixed offset produced when
+   * the body sits high in the frame (mobile).
+   */
+  private offsetAt(d: number, out: THREE.Vector3): THREE.Vector3 {
+    const vh = 2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) * d;
+    const vw = vh * this.camera.aspect;
+    return out.set(-this.xFrac * vw * 0.5, this.yFrac * vh * 0.5, 0);
   }
 
   private baseDistSafe(): number {
@@ -428,6 +479,12 @@ export class DetailView {
     }
   }
 
+  /** upper zoom bound — never tighter than the body's own fit distance, so
+   *  ringed planets framed far back on a phone can still zoom fully out */
+  private maxDist(): number {
+    return this.current ? Math.max(8.2, this.fitDist(this.current)) : 8.2;
+  }
+
   pointerMove(e: PointerEvent) {
     const p = this.pointers.get(e.pointerId);
     if (!p) return;
@@ -440,7 +497,7 @@ export class DetailView {
         this.targetDist = THREE.MathUtils.clamp(
           this.targetDist * (this.pinchDist / span),
           2.6,
-          8.2
+          this.maxDist()
         );
       }
       this.pinchDist = span;
@@ -468,8 +525,14 @@ export class DetailView {
     this.targetDist = THREE.MathUtils.clamp(
       this.targetDist * (1 + e.deltaY * 0.0011),
       2.6,
-      8.2
+      this.maxDist()
     );
+  }
+
+  /** discrete zoom step for the mobile +/- buttons (+1 = closer, -1 = further) */
+  zoomStep(dir: 1 | -1) {
+    const factor = dir === 1 ? 0.82 : 1.22;
+    this.targetDist = THREE.MathUtils.clamp(this.targetDist * factor, 2.6, this.maxDist());
   }
 
   private pinchSpan(): number {
@@ -556,6 +619,12 @@ export class DetailView {
     if (!Number.isFinite(this.dist)) this.dist = this.targetDist;
     this.dist += (this.targetDist - this.dist) * Math.min(1, dt * 7);
     this.camera.position.z = this.dist;
+
+    // pin the body to its screen slot as the distance changes, so zoom
+    // magnifies about the body's centre rather than the frame origin
+    if (cur && !this.slide && this.glideT < 0) {
+      cur.group.position.copy(this.offsetAt(this.dist, this.otmp));
+    }
 
     this.updateMarkers();
   }

@@ -1,5 +1,6 @@
 import './styles.css';
 import { Sound } from './audio/sound';
+import { startFaviconAnimation } from './ui/favicon';
 import { BODIES, bodyById, bodyIndex } from './data/bodies';
 import { craftById, SPACECRAFT } from './data/spacecraft';
 import { World } from './scene/app';
@@ -41,6 +42,7 @@ const hud = new Hud(app, {
     hud.setSound(on);
   },
   onStep: (delta) => stepBody(delta),
+  onZoom: (dir) => world.detail.zoomStep(dir),
 });
 
 /** slide to a neighbouring body; from a craft sheet, step lands on Earth */
@@ -141,7 +143,7 @@ function layout() {
   document.getElementById('app')!.classList.toggle('mobile', mobile);
   // mobile is stage-only: the orrery never shows there
   if (mobile && world.view === 'orrery') {
-    world.jumpToBody(world.currentBody ?? 'earth');
+    world.jumpToBody(world.currentBody ?? 'sun');
   }
 }
 window.addEventListener('resize', layout);
@@ -154,7 +156,7 @@ if (hashId && isBodyId(hashId)) {
 } else if (hashId && isCraftId(hashId)) {
   world.jumpToCraft(hashId);
 } else if (isMobile()) {
-  world.jumpToBody('earth');
+  world.jumpToBody('sun');
 }
 layout();
 
@@ -176,6 +178,8 @@ requestAnimationFrame(() => {
     }, 350);
   });
 });
+
+startFaviconAnimation(); // rotating Neptune in the tab
 
 // debug handles (kept: invaluable when poking the live scene from devtools)
 Object.assign(window as never, { __world: world, __sound: sound });

@@ -223,6 +223,7 @@ export class Orrery {
     this.craftVisible = on;
     // DOM markers fade via the #app.hide-craft class; only the 3D minis toggle here
     for (const c of this.craft) {
+      if (on) c.stage.load(); // lazy: fetch the GLBs only when craft mode is first shown
       c.holder.visible = on;
     }
   }

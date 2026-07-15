@@ -16,6 +16,8 @@ export interface CraftStage {
   spinner: THREE.Group;
   radius: number;
   ready: boolean;
+  /** kick off the GLB fetch — lazy so hidden craft don't cost ~29 MB at boot */
+  load: () => void;
 }
 
 const loader = new GLTFLoader();
@@ -119,28 +121,42 @@ export function buildCraftStage(
   tilt.add(userGroup);
   userGroup.add(spinner);
 
-  const stage: CraftStage = { craft, group, tilt, userGroup, spinner, radius, ready: false };
-
-  loadTemplate(craft.model)
-    .then((template) => {
-      const instance = template.clone(true);
-      instance.traverse((o) => {
-        const mesh = o as THREE.Mesh;
-        if (mesh.isMesh) {
-          const mat = mesh.material as THREE.MeshStandardMaterial;
-          if (mat?.isMeshStandardMaterial) {
-            mat.envMapIntensity = 1.3;
-            repaint(craft.id, mesh, mat);
-          }
-        }
-      });
-      spinner.add(normalize(instance, radius));
-      stage.ready = true;
-      onReady?.();
-    })
-    .catch(() => {
-      /* model is optional — the crosshair marker remains the affordance */
-    });
+  let started = false;
+  const stage: CraftStage = {
+    craft,
+    group,
+    tilt,
+    userGroup,
+    spinner,
+    radius,
+    ready: false,
+    // deferred: the orrery builds all seven skeletons at boot, but the heavy
+    // GLBs only fetch when craft mode is shown or a craft is opened
+    load() {
+      if (started) return;
+      started = true;
+      loadTemplate(craft.model)
+        .then((template) => {
+          const instance = template.clone(true);
+          instance.traverse((o) => {
+            const mesh = o as THREE.Mesh;
+            if (mesh.isMesh) {
+              const mat = mesh.material as THREE.MeshStandardMaterial;
+              if (mat?.isMeshStandardMaterial) {
+                mat.envMapIntensity = 1.3;
+                repaint(craft.id, mesh, mat);
+              }
+            }
+          });
+          spinner.add(normalize(instance, radius));
+          stage.ready = true;
+          onReady?.();
+        })
+        .catch(() => {
+          /* model is optional — the crosshair marker remains the affordance */
+        });
+    },
+  };
 
   return stage;
 }

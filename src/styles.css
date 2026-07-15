@@ -32,6 +32,7 @@
   --surface: rgba(17, 21, 31, 0.74); /* frosted chrome — a raised step above --bg */
   --accent: #d9a24b; /* instrument amber — data, current state */
   --accent-2: #5fd4e6; /* signal cyan — interactive, tech chrome */
+  --node-ring: #33b4d4; /* deeper cyan — hotspot node stroke (reads without a dark halo) */
   --ease-out: cubic-bezier(0.2, 0, 0, 1); /* strong ease-out — the app's one deliberate curve */
   --mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
   --sans: 'TASA Orbiter', 'Inter', system-ui, -apple-system, sans-serif;
@@ -97,6 +98,9 @@ canvas#gl {
   position: absolute;
   inset: 0;
   display: block;
+  /* the canvas owns all touch gestures (rotate/pinch) — stops the browser from
+     pinch-zooming the whole page when the user tries to zoom a planet */
+  touch-action: none;
 }
 
 /* ---------- frosted glass (black) — shared surface for all boxed chrome.
@@ -107,7 +111,7 @@ canvas#gl {
 #index,
 .toggle,
 #back,
-#mnav button,
+.mnav-group,
 .hot-card {
   background: var(--surface);
   /* a hair of top-edge highlight lifts the surface off the near-black bg
@@ -280,29 +284,29 @@ canvas#gl {
 }
 .hot-marker i {
   position: absolute;
-  inset: 13px;
-  border: 1px solid var(--accent-2);
+  inset: 12px;
+  /* legibility on bright planets now comes from a thicker, deeper stroke —
+     no dark contrast halo */
+  border: 2px solid var(--node-ring);
   border-radius: 50%;
-  /* dark ring hugging the cyan so the node reads on bright planets too */
-  box-shadow: 0 0 0 2px rgba(5, 6, 10, 0.5), 0 0 6px 1px rgba(5, 6, 10, 0.6);
   transition-property: background-color, box-shadow, border-color;
   transition-duration: 180ms;
 }
 .hot-marker i::after {
   content: '';
   position: absolute;
-  inset: 4.5px;
+  inset: 4px;
   border-radius: 50%;
   background: var(--accent-2);
-  box-shadow: 0 0 0 1.5px rgba(5, 6, 10, 0.65), 0 0 9px var(--accent-2);
+  /* the node's own cyan glow — not a dark contrast ring */
+  box-shadow: 0 0 7px rgba(95, 212, 230, 0.8);
 }
 .hot-marker::before {
   content: '';
   position: absolute;
   inset: 9px;
-  border: 1px solid rgba(95, 212, 230, 0.6);
+  border: 1.5px solid rgba(95, 212, 230, 0.55);
   border-radius: 50%;
-  box-shadow: 0 0 0 1px rgba(5, 6, 10, 0.4);
   animation: hotping 2.8s cubic-bezier(0.2, 0, 0.4, 1) infinite;
 }
 @keyframes hotping {
@@ -321,8 +325,9 @@ canvas#gl {
 }
 .hot-marker:hover i,
 .hot-marker.open i {
-  background: rgba(95, 212, 230, 0.22);
-  box-shadow: 0 0 0 2px rgba(5, 6, 10, 0.5), 0 0 14px rgba(95, 212, 230, 0.55);
+  background: rgba(95, 212, 230, 0.25);
+  border-color: var(--accent-2);
+  box-shadow: 0 0 14px rgba(95, 212, 230, 0.6);
 }
 .hot-marker.open::before {
   animation: none;
@@ -1097,6 +1102,16 @@ canvas#gl {
     height: 32vh;
     padding: 18px 20px 18px;
     /* border + clip-path inherit from .panel — restore the box */
+    /* the card is near-opaque already: skip blurring the live canvas every
+       frame (a real mobile perf drain) and lean on a solid fill instead */
+    background: rgba(12, 15, 23, 0.92);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  /* the small nav groups keep their frosted read but at a cheaper blur radius */
+  .mnav-group {
+    -webkit-backdrop-filter: blur(12px) saturate(1.2);
+    backdrop-filter: blur(12px) saturate(1.2);
   }
   .panel h1 {
     font-size: 28px;
@@ -1106,19 +1121,28 @@ canvas#gl {
   #index {
     display: none;
   }
+  /* zoom (left) and prev/next (right) as two separate notched boxes on one row */
   #app.detail #mnav {
     display: flex;
+    gap: 12px;
   }
-  /* its own notched box, matching the card's inset */
   #mnav {
     position: absolute;
     left: 16px;
     right: 16px;
     bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-    height: 48px; /* Material touch minimum, slimmer than before */
+    height: 48px; /* Material touch minimum */
     z-index: 6;
+  }
+  .mnav-group {
+    display: flex;
+    height: 100%;
     border: 1px solid var(--line);
     clip-path: var(--cut-btn);
+    overflow: hidden; /* keep the paired buttons inside the notched silhouette */
+  }
+  .mnav-group:last-child {
+    flex: 1; /* arrows fill the row; the zoom group stays content-width */
   }
   #mnav button {
     flex: 1;
@@ -1135,7 +1159,21 @@ canvas#gl {
     transition-property: color, opacity, transform;
     transition-duration: 140ms;
   }
-  #mnav button + button {
+  /* zoom controls are compact, fixed-width slots */
+  #mnav .zbtn {
+    flex: 0 0 46px;
+    gap: 0;
+    font-size: 20px;
+    font-weight: 400;
+    letter-spacing: 0;
+    color: var(--accent-2);
+  }
+  #mnav .zbtn span {
+    display: block;
+    line-height: 1;
+    transform: translateY(-1px);
+  }
+  .mnav-group button + button {
     border-left: 1px solid var(--line);
   }
   #mnav button:active {
