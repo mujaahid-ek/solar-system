@@ -1,0 +1,1147 @@
+/* ---------- fonts (self-hosted; TASA Orbiter + Inter + Geist Mono, as on motion.dev — all OFL) ---------- */
+@font-face {
+  font-family: 'TASA Orbiter';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url('/fonts/tasa-orbiter-var.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/inter-var.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/geist-mono-var.woff2') format('woff2');
+}
+
+/* ---------- tokens ---------- */
+:root {
+  --bg: #05060a;
+  --ink: #e8ecf4;
+  --ink-2: #9aa3b8;
+  --ink-3: #5d6579;
+  --line: rgba(220, 228, 245, 0.18);
+  --line-strong: rgba(220, 228, 245, 0.34);
+  --surface: rgba(17, 21, 31, 0.74); /* frosted chrome — a raised step above --bg */
+  --accent: #d9a24b; /* instrument amber — data, current state */
+  --accent-2: #5fd4e6; /* signal cyan — interactive, tech chrome */
+  --ease-out: cubic-bezier(0.2, 0, 0, 1); /* strong ease-out — the app's one deliberate curve */
+  --mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --sans: 'TASA Orbiter', 'Inter', system-ui, -apple-system, sans-serif;
+  --body-font: 'Inter', system-ui, -apple-system, sans-serif;
+  --panel-w: 356px;
+  --shadow-text: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 14px rgba(0, 0, 0, 0.65);
+  --cut: polygon(0 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%);
+  /* Cyberpunk dual-notch silhouettes: opposite corners sliced */
+  --cut2: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  --cut-btn: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+}
+
+/* ---------- base ---------- */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+html,
+body {
+  height: 100%;
+  overscroll-behavior: none;
+}
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-feature-settings: 'ss03' on, 'cv05' on;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+}
+::selection {
+  background: var(--accent);
+  color: var(--bg);
+}
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+:focus-visible {
+  outline: 1px solid var(--accent-2);
+  outline-offset: 3px;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+}
+
+/* never CSS-animate the WebGL canvas itself — compositor transitions can
+   freeze against a live render loop; the #dip overlay does all fading */
+canvas#gl {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+/* ---------- frosted glass (black) — shared surface for all boxed chrome.
+   Boxes instead of gradient scrims: a gradient's soft edge reads as a smear
+   when a bright planet sits behind it; a bordered glass box reads as a panel. */
+.glass,
+.panel,
+#index,
+.toggle,
+#back,
+#mnav button,
+.hot-card {
+  background: var(--surface);
+  /* a hair of top-edge highlight lifts the surface off the near-black bg
+     (drop shadows would be clipped by the notched clip-path) */
+  box-shadow: inset 0 1px 0 rgba(232, 236, 244, 0.06);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  backdrop-filter: blur(20px) saturate(1.3);
+}
+
+/* ---------- overlay label layer (orrery) ---------- */
+#labels {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 2;
+  transition: opacity 240ms ease;
+}
+
+.body-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  white-space: nowrap;
+  padding: 6px 8px;
+  text-shadow: var(--shadow-text);
+  transition-property: color, opacity;
+  transition-duration: 160ms;
+  opacity: 0.92;
+}
+.body-label .no {
+  color: var(--ink-3);
+  margin-right: 0.6em;
+  transition-property: color;
+  transition-duration: 160ms;
+}
+.body-label:hover,
+.body-label.hot {
+  color: var(--ink);
+}
+.body-label:hover .no,
+.body-label.hot .no {
+  color: var(--accent);
+}
+
+/* ---------- spacecraft markers ---------- */
+.craft-marker {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent-2);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding: 8px;
+  opacity: 0.95;
+  text-shadow: var(--shadow-text);
+  transition-property: opacity, visibility;
+  transition-duration: 180ms;
+}
+.craft-marker:hover {
+  opacity: 1;
+  color: #a6ecf6;
+}
+.craft-marker .x {
+  position: relative;
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+}
+.craft-marker .x::before,
+.craft-marker .x::after {
+  content: '';
+  position: absolute;
+  background: currentColor;
+}
+.craft-marker .x::before {
+  left: 0;
+  right: 0;
+  top: 8px;
+  height: 1px;
+}
+.craft-marker .x::after {
+  top: 0;
+  bottom: 0;
+  left: 8px;
+  width: 1px;
+}
+.craft-marker .x span {
+  position: absolute;
+  inset: 5px;
+  background: var(--bg);
+}
+.craft-marker .x span::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+.craft-marker small {
+  color: var(--ink-3);
+  margin-left: 0.7em;
+  letter-spacing: 0.1em;
+}
+.craft-marker.craft-iss {
+  flex-direction: row-reverse;
+}
+.craft-marker.craft-iss small {
+  margin-left: 0;
+  margin-right: 0.7em;
+}
+/* Hubble's label hangs below its crosshair — its right side belongs to the Moon */
+.craft-marker.craft-hubble {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+#app.hide-craft .craft-marker {
+  opacity: 0;
+  visibility: hidden;
+}
+.craft-marker.edge {
+  opacity: 0.4;
+}
+/* once the 3D model is in the scene, the crosshair yields to it */
+.craft-marker.has-model .x {
+  display: none;
+}
+
+#app.detail #labels,
+#app.moving #labels {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ---------- planet surface hotspots ---------- */
+#hotspots {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 5;
+}
+#app:not(.detail) #hotspots {
+  display: none;
+}
+.hot-marker {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 40px;
+  height: 40px;
+  pointer-events: auto;
+  transform: translate(-20px, -20px);
+}
+.hot-marker i {
+  position: absolute;
+  inset: 13px;
+  border: 1px solid var(--accent-2);
+  border-radius: 50%;
+  transition-property: background-color, box-shadow, border-color;
+  transition-duration: 180ms;
+}
+.hot-marker i::after {
+  content: '';
+  position: absolute;
+  inset: 4.5px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  box-shadow: 0 0 9px var(--accent-2);
+}
+.hot-marker::before {
+  content: '';
+  position: absolute;
+  inset: 9px;
+  border: 1px solid rgba(95, 212, 230, 0.6);
+  border-radius: 50%;
+  animation: hotping 2.8s cubic-bezier(0.2, 0, 0.4, 1) infinite;
+}
+@keyframes hotping {
+  0% {
+    transform: scale(0.55);
+    opacity: 0;
+  }
+  22% {
+    opacity: 0.85;
+  }
+  70%,
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+.hot-marker:hover i,
+.hot-marker.open i {
+  background: rgba(95, 212, 230, 0.22);
+  box-shadow: 0 0 14px rgba(95, 212, 230, 0.5);
+}
+.hot-marker.open::before {
+  animation: none;
+  opacity: 0;
+}
+
+.hot-card {
+  position: absolute;
+  z-index: 4;
+  width: 268px;
+  padding: 14px 16px 15px;
+  border: 1px solid var(--line-strong);
+  clip-path: var(--cut);
+  transform-origin: var(--ox, 0) var(--oy, 50%);
+  animation: cardin 240ms var(--ease-out) both;
+  pointer-events: auto;
+}
+@keyframes cardin {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.hot-card::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  width: 18px;
+  height: 18px;
+  border-top: 2px solid var(--accent-2);
+  border-left: 2px solid var(--accent-2);
+}
+.hot-card h3 {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+  padding-right: 34px;
+}
+.hot-card p {
+  margin-top: 8px;
+  font-family: var(--body-font);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+.hot-card .close {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  color: var(--ink-3);
+  font-size: 14px;
+  line-height: 1;
+  transition-property: color, transform;
+  transition-duration: 140ms;
+}
+.hot-card .close:hover {
+  color: var(--ink);
+}
+.hot-card .close:active {
+  transform: scale(0.96);
+}
+
+/* ---------- top bar ---------- */
+#topbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 24px 28px 0;
+  pointer-events: none;
+}
+#topbar > * {
+  pointer-events: auto;
+}
+.brand {
+  line-height: 1.4;
+}
+/* the title centers on the 40px toggle row; the subline hangs below it */
+.brand .t {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  text-shadow: var(--shadow-text);
+}
+.brand .t em {
+  font-style: normal;
+  color: var(--accent);
+}
+.brand .s {
+  display: block;
+  max-width: 220px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  line-height: 1.7;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-top: 3px;
+  text-shadow: var(--shadow-text);
+}
+
+.toggles {
+  display: flex;
+  gap: 8px;
+}
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 40px;
+  padding: 9px 14px 10px 12px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  border: 1px solid var(--line);
+  clip-path: var(--cut-btn);
+  transition-property: color, border-color, transform;
+  transition-duration: 140ms;
+}
+.toggle:hover {
+  color: var(--ink);
+  border-color: rgba(95, 212, 230, 0.5); /* same signal cyan as every hover stroke */
+}
+.toggle:active {
+  transform: scale(0.96);
+}
+.toggle .led {
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--line-strong);
+  transition-property: background-color, border-color, box-shadow;
+  transition-duration: 180ms;
+}
+.toggle.on {
+  color: var(--ink);
+  border-color: rgba(217, 162, 75, 0.45);
+}
+.toggle.on .led {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 8px rgba(217, 162, 75, 0.55);
+}
+
+/* ---------- back button ---------- */
+#back {
+  position: absolute;
+  top: 24px;
+  left: 28px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 40px;
+  padding: 9px 14px 10px 12px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  border: 1px solid var(--line);
+  clip-path: var(--cut-btn);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  /* reveal decelerates hard; hover colors answer fast like every other control */
+  transition:
+    opacity 220ms var(--ease-out),
+    transform 220ms var(--ease-out),
+    visibility 220ms var(--ease-out),
+    color 140ms ease,
+    border-color 140ms ease;
+}
+#back:hover {
+  color: var(--ink);
+  border-color: rgba(95, 212, 230, 0.5);
+}
+#app.detail #back:active {
+  transform: translateY(0) scale(0.96);
+}
+#back .arr {
+  color: var(--accent-2);
+}
+#app.detail #back {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+/* ---------- bottom index: a frosted nav bar ---------- */
+#index {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 22px;
+  max-width: calc(100vw - 48px);
+  z-index: 6;
+  display: flex;
+  justify-content: flex-start;
+  gap: 2px;
+  padding: 5px 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border: 1px solid var(--line);
+  clip-path: var(--cut-btn);
+}
+#index::-webkit-scrollbar {
+  display: none;
+}
+.idx {
+  position: relative;
+  flex-shrink: 0;
+  min-height: 40px;
+  padding: 10px 12px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  text-shadow: var(--shadow-text);
+  transition-property: color, transform;
+  transition-duration: 140ms;
+}
+.idx:active {
+  transform: scale(0.96);
+}
+.idx:hover {
+  color: var(--ink-2);
+}
+.idx .no {
+  margin-right: 0.55em;
+  opacity: 0.7;
+}
+.idx::after {
+  content: '';
+  position: absolute;
+  left: 11px;
+  right: 11px;
+  top: 0;
+  height: 1px;
+  background: var(--accent);
+  opacity: 0;
+  transform: scaleX(0.4);
+  transition-property: opacity, transform;
+  transition-duration: 220ms;
+}
+.idx.cur {
+  color: var(--ink);
+}
+.idx.cur .no {
+  color: var(--accent);
+  opacity: 1;
+}
+.idx.cur::after {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+/* ---------- hint + credit ---------- */
+/* the interaction guide lives top-center, clear of the bottom nav strip */
+#hint {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  height: 40px; /* centers on the toggle row, like the brand title */
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  white-space: nowrap;
+  pointer-events: none;
+  text-shadow: var(--shadow-text);
+  transition: opacity 400ms ease;
+}
+#credit {
+  position: absolute;
+  top: 74px;
+  right: 28px;
+  z-index: 5;
+  max-width: 240px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  line-height: 1.7;
+  text-align: right;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  pointer-events: none;
+  opacity: 0.8;
+  text-shadow: var(--shadow-text);
+  transition-property: opacity, visibility;
+  transition-duration: 200ms;
+}
+#app.detail #credit {
+  opacity: 0;
+  visibility: hidden;
+}
+
+/* ---------- colophon: changelog + signature (desktop orrery only) ---------- */
+#colophon {
+  position: absolute;
+  left: 28px;
+  bottom: 24px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 9px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transition: opacity 300ms ease;
+}
+#app.detail #colophon,
+#app.moving #colophon {
+  opacity: 0;
+  pointer-events: none;
+}
+#changelog {
+  position: relative;
+}
+#clogBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: var(--ink-3);
+  text-shadow: var(--shadow-text);
+  transition: color 140ms ease;
+}
+#clogBtn:hover {
+  color: var(--ink-2);
+}
+#clogBtn .cur-v {
+  color: var(--accent);
+  opacity: 0.9;
+}
+#clogBtn .chev {
+  width: 6px;
+  height: 6px;
+  border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  transform: rotate(-135deg); /* points up — click opens the list above */
+  transition: transform 200ms var(--ease-out);
+}
+#clogBtn[aria-expanded='true'] .chev {
+  transform: rotate(45deg);
+}
+#clogList {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 9px);
+  width: 264px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  clip-path: var(--cut-btn);
+  box-shadow: inset 0 1px 0 rgba(232, 236, 244, 0.06);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  backdrop-filter: blur(20px) saturate(1.3);
+  transform-origin: 0 100%;
+  animation: cardin 200ms var(--ease-out) both;
+}
+#clogList[hidden] {
+  display: none;
+}
+.clog-row {
+  display: flex;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+.clog-row:last-child {
+  border-bottom: none;
+}
+.clog-row .v {
+  flex-shrink: 0;
+  width: 20px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.clog-row .n {
+  color: var(--ink-2);
+  font-size: 10px;
+  line-height: 1.45;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+#madeby {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ink-3);
+  text-decoration: none;
+  text-shadow: var(--shadow-text);
+  transition: color 140ms ease;
+}
+#madeby b {
+  font-weight: 600;
+  color: var(--ink-2);
+  transition: color 140ms ease;
+}
+#madeby .ext {
+  font-size: 8px;
+  transform: translateY(-1px);
+}
+#madeby:hover,
+#madeby:hover b {
+  color: var(--accent-2);
+}
+/* the centred index needs the room on tighter desktops */
+@media (max-width: 1140px) {
+  #colophon {
+    display: none;
+  }
+}
+
+/* ---------- info panels: equal-height frosted boxes ---------- */
+.panel {
+  position: absolute;
+  top: 96px;
+  bottom: 92px;
+  z-index: 4;
+  width: var(--panel-w);
+  padding: 26px 26px 32px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line);
+  clip-path: var(--cut2);
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(6px);
+  transition-property: opacity, visibility, transform;
+  transition-duration: 300ms;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+#panelR {
+  right: 24px;
+}
+#panelL {
+  left: 24px;
+}
+#app.detail .panel.filled {
+  visibility: visible;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* the brand yields to the Overview button in detail view */
+#app.detail .brand {
+  opacity: 0;
+  visibility: hidden;
+}
+.brand {
+  transition-property: opacity, visibility;
+  transition-duration: 200ms;
+}
+
+.panel .rise {
+  animation: rise 340ms var(--ease-out) both;
+  animation-delay: calc(var(--i) * 45ms);
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* panel masthead: name leads, designation and record line hang beneath it */
+.panel h1 {
+  font-size: 42px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  margin: 0 0 10px;
+  text-wrap: balance;
+}
+.sub {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 10px;
+}
+.meta-line {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: 20px;
+}
+.meta-line b {
+  font-weight: 500;
+  color: var(--accent-2);
+}
+.desc {
+  font-family: var(--body-font);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink-2);
+  text-wrap: pretty;
+  margin-bottom: 6px;
+}
+
+/* section heading: quiet mono label with a rule running off to the right */
+.sec {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 32px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.sec::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  flex-shrink: 0;
+  background: var(--accent-2);
+  transform: rotate(45deg);
+  opacity: 0.85;
+}
+.sec::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line-strong);
+}
+
+.rows {
+  margin-top: 2px;
+}
+.row {
+  display: grid;
+  grid-template-columns: 118px 1fr;
+  gap: 12px;
+  align-items: baseline;
+  padding: 9px 0 10px;
+  border-bottom: 1px solid var(--line);
+}
+.row:last-child {
+  border-bottom: none;
+}
+.row dt {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.row dd {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  overflow-wrap: break-word;
+}
+.row dd small {
+  display: block;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--ink-3);
+  margin-top: 2px;
+  letter-spacing: 0.04em;
+}
+
+/* atmosphere bar */
+.atm-bar {
+  display: flex;
+  height: 7px;
+  margin: 14px 0 4px;
+  background: rgba(220, 228, 245, 0.06);
+}
+.atm-bar i {
+  height: 100%;
+}
+.atm-bar i:nth-child(1) {
+  background: var(--accent);
+}
+.atm-bar i:nth-child(2) {
+  background: rgba(232, 236, 244, 0.75);
+}
+.atm-bar i:nth-child(3) {
+  background: rgba(232, 236, 244, 0.34);
+}
+.atm-bar i:nth-child(4) {
+  background: rgba(232, 236, 244, 0.16);
+}
+.atm-note {
+  font-family: var(--body-font);
+  font-size: 11px;
+  color: var(--ink-3);
+  margin-top: 8px;
+  line-height: 1.5;
+}
+
+/* craft sheet */
+.status-line {
+  display: flex;
+  gap: 9px;
+  align-items: baseline;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-2);
+  margin-top: 12px;
+  line-height: 1.55;
+}
+.status-line .dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  background: #6fbf73;
+  box-shadow: 0 0 7px rgba(111, 191, 115, 0.7);
+  transform: translateY(-1px);
+}
+
+/* ---------- dip-to-black ---------- */
+#dip {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms linear;
+}
+#dip.show {
+  opacity: 1;
+}
+#dip.boot {
+  transition-duration: 1100ms;
+}
+
+/* ---------- webgl fallback ---------- */
+#nogl {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--ink-2);
+}
+
+/* ---------- reduced motion: keep the fades, drop the movement ---------- */
+@keyframes fadeonly {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hot-marker::before {
+    animation: none;
+    opacity: 0;
+  }
+  .panel .rise,
+  .hot-card {
+    animation-name: fadeonly;
+  }
+  #back {
+    transition:
+      opacity 220ms var(--ease-out),
+      visibility 220ms var(--ease-out),
+      color 140ms ease,
+      border-color 140ms ease;
+  }
+  .panel {
+    transition-property: opacity, visibility;
+  }
+  #app.detail #back,
+  #app.detail .panel.filled {
+    transform: none;
+  }
+}
+
+/* ---------- narrow desktop: single right panel ---------- */
+@media (max-width: 1200px) {
+  #panelL {
+    display: none;
+  }
+}
+
+/* ---------- mobile: stage view only ---------- */
+#mnav {
+  display: none;
+}
+#app.mobile #back,
+#app.mobile #tCraft {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  :root {
+    --panel-w: 100%;
+  }
+  #topbar {
+    padding: 16px 16px 0;
+  }
+  .brand .s {
+    display: none;
+  }
+  /* a floating notched card, inset from the edges — keeps the boxed read.
+     kept short so the planet stays the hero (~58% of the screen) */
+  #panelR {
+    top: auto;
+    left: 16px;
+    right: 16px;
+    width: auto;
+    bottom: calc(80px + env(safe-area-inset-bottom, 0px)); /* nav (16+48) + 16 gap */
+    height: 32vh;
+    padding: 18px 20px 18px;
+    /* border + clip-path inherit from .panel — restore the box */
+  }
+  .panel h1 {
+    font-size: 28px;
+    margin-bottom: 8px;
+  }
+  /* the index strip yields to prev/next arrows under the info panel */
+  #index {
+    display: none;
+  }
+  #app.detail #mnav {
+    display: flex;
+  }
+  /* its own notched box, matching the card's inset */
+  #mnav {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    height: 48px; /* Material touch minimum, slimmer than before */
+    z-index: 6;
+    border: 1px solid var(--line);
+    clip-path: var(--cut-btn);
+  }
+  #mnav button {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    transition-property: color, opacity, transform;
+    transition-duration: 140ms;
+  }
+  #mnav button + button {
+    border-left: 1px solid var(--line);
+  }
+  #mnav button:active {
+    transform: scale(0.97);
+  }
+  #mnav button:disabled {
+    opacity: 0.35;
+    pointer-events: none;
+  }
+  #mnav .arr {
+    color: var(--accent-2);
+    font-size: 14px;
+  }
+  /* stage-only touch UI: gestures are discoverable, the guide is not needed */
+  #hint,
+  #credit {
+    display: none;
+  }
+  #scrimBottom {
+    display: none;
+  }
+  .hot-card {
+    width: min(268px, calc(100vw - 32px));
+  }
+}
